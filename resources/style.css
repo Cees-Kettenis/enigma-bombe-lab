@@ -26,3 +26,27 @@ progressbar progress { background: #dab36d; min-height: 9px; }
 scrolledwindow { border-radius: 8px; }
 separator { background: #3d4f4e; }
 .tutorial { background: #233536; border: 1px solid #b38b49; border-radius: 8px; padding: 10px 14px; }
+
+/* A quiet workbench, with brass accents for the next action. */
+headerbar { min-height: 46px; }
+label.title { font-size: 27px; letter-spacing: .3px; }
+label.section { letter-spacing: .2px; }
+label.subtitle { font-size: 14px; }
+label.stats { font-size: 14px; }
+label.status { font-size: 13px; border-top: 1px solid #36494a; }
+button { border-radius: 9px; padding: 9px 14px; }
+button:focus-visible { outline: 2px solid #efc77c; outline-offset: 2px; }
+entry, spinbutton, dropdown { border-radius: 7px; min-height: 34px; }
+entry:focus-within { border-color: #dab36d; }
+stackswitcher { background: #1c292c; border: 1px solid #36494a; border-radius: 12px; padding: 4px; }
+stackswitcher button { border: none; background: transparent; border-radius: 8px; font-size: 12px; padding: 9px 12px; }
+stackswitcher button:checked { background: #dfb775; color: #152125; font-weight: 700; }
+stackswitcher button:hover { background: #3a5050; color: #fff1d9; }
+expander.explanation { background: #1a272a; border: 1px solid #344749; border-radius: 9px; padding: 12px 16px; }
+expander.explanation > title { color: #d9c395; font-weight: 600; }
+label.candidate { font-family: monospace; font-size: 14px; color: #eae3cf; }
+list row { padding: 14px 16px; border-bottom: 1px solid #334543; }
+list row:hover { background: #263b3d; }
+list row:selected { background: #3c514b; border-left: 3px solid #dfb775; }
+progressbar trough, progressbar progress { border-radius: 8px; min-height: 10px; }
+.tutorial { border-radius: 12px; padding: 16px 20px; }

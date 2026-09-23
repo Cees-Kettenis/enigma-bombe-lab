@@ -56,8 +56,17 @@ static void add(GtkWidget *b, GtkWidget *w) {
     else
         gtk_box_append(GTK_BOX(b), w);
 }
+static void explanation(GtkWidget *parent, const char *title, const char *text) {
+    GtkWidget *expander = gtk_expander_new(title);
+    gtk_widget_add_css_class(expander, "explanation");
+    GtkWidget *body = label(text, "subtitle");
+    gtk_widget_set_margin_top(body, 10);
+    gtk_expander_set_child(GTK_EXPANDER(expander), body);
+    add(parent, expander);
+}
 static GtkWidget *button(GtkWidget *b, const char *text, GCallback cb, App *a) {
     GtkWidget *w = gtk_button_new_with_label(text);
+    gtk_widget_set_valign(w, GTK_ALIGN_CENTER);
     g_signal_connect(w, "clicked", cb, a);
     add(b, w);
     return w;
@@ -103,7 +112,8 @@ static void page_changed(GObject *stack, GParamSpec *property, gpointer data) {
     (void)property;
     App *a = data;
     GtkWidget *visible = gtk_stack_get_visible_child(GTK_STACK(stack));
-    if (!visible) return;
+    if (!visible)
+        return;
     GtkWidget *scroll = g_object_get_data(G_OBJECT(visible), "page-scroll");
     GtkWidget *focus = gtk_window_get_focus(GTK_WINDOW(a->window));
     /* GtkStack restores the last focused descendant. That can scroll a newly opened
@@ -146,6 +156,15 @@ static void thread_preset(GtkButton *b, gpointer data) {
     unsigned n = GPOINTER_TO_UINT(g_object_get_data(G_OBJECT(b), "threads"));
     gtk_spin_button_set_value(GTK_SPIN_BUTTON(a->threads), (double)n);
 }
+static void search_mode_changed(GObject *object, GParamSpec *property, gpointer data) {
+    (void)object;
+    (void)property;
+    App *a = data;
+    bool no_crib = gtk_drop_down_get_selected(GTK_DROP_DOWN(a->mode)) == 3;
+    GtkWidget *attempts_row = g_object_get_data(G_OBJECT(a->blind_restarts), "controls-row");
+    gtk_widget_set_visible(attempts_row, no_crib);
+    gtk_widget_set_sensitive(gtk_widget_get_parent(a->stop_limit), !no_crib);
+}
 static int candidate_sort(GtkListBoxRow *left, GtkListBoxRow *right, gpointer data) {
     (void)data;
     const Candidate *a = g_object_get_data(G_OBJECT(left), "candidate");
@@ -166,8 +185,8 @@ void gui_build(App *a) {
     gtk_window_set_title(GTK_WINDOW(a->window), "Enigma Bombe Lab");
     gtk_window_set_default_size(GTK_WINDOW(a->window), 1400, 900);
     GtkWidget *header = gtk_header_bar_new();
-    gtk_header_bar_set_title_widget(GTK_HEADER_BAR(header),
-                                    gtk_label_new("ENIGMA BOMBE LAB  /  HISTORICAL CRYPTOGRAPHY"));
+    gtk_header_bar_set_title_widget(
+        GTK_HEADER_BAR(header), gtk_label_new("Enigma Bombe Lab  ·  A codebreaking playground"));
     gtk_window_set_titlebar(GTK_WINDOW(a->window), header);
     GtkWidget *help = gtk_button_new_with_label("Tutorial");
     g_signal_connect(help, "clicked", G_CALLBACK(app_tutorial), a);
@@ -186,9 +205,10 @@ void gui_build(App *a) {
     add(root, switcher);
     tutorial_build(a, root);
     add(root, a->stack);
-    a->status = label("Ready. Load the example intercept to begin.", "status");
+    a->status = label("Ready to play. Write a message or open the tutorial for a guided first run.",
+                      "status");
     add(root, a->status);
-    GtkWidget *v = page(a, "enigma", "ENIGMA", "ENIGMA I / M3"),
+    GtkWidget *v = page(a, "enigma", "ENIGMA", "Inside the Enigma"),
               *row = box(GTK_ORIENTATION_HORIZONTAL, 12);
     add(v, label("Three moving rotors. One reciprocal circuit. Every keypress steps before the "
                  "current flows.",
@@ -200,7 +220,7 @@ void gui_build(App *a) {
         a->rotor[i] = gtk_drop_down_new_from_strings(rotors);
         field(row, i == 0 ? "Left rotor" : i == 1 ? "Middle rotor" : "Right rotor", a->rotor[i]);
     }
-    a->rings = field(row, "Ringstellung", entry("AAA", 5));
+    a->rings = field(row, "Ring settings", entry("AAA", 5));
     a->positions = field(row, "Start windows", entry("AAA", 5));
     a->reflector = field(row, "Reflector", gtk_drop_down_new_from_strings(reflectors));
     gtk_entry_set_max_length(GTK_ENTRY(a->rings), 3);
@@ -211,7 +231,7 @@ void gui_build(App *a) {
     button(row, "Randomize machine", G_CALLBACK(app_random_key), a);
     a->random_rings = gtk_check_button_new_with_label("Randomize rings too");
     add(row, a->random_rings);
-    const char *speeds[] = {"Slow educational", "Normal", "Fast", "Instant", NULL};
+    const char *speeds[] = {"Step by step", "Normal", "Fast", "Instant", NULL};
     a->speed = field(row, "Animation", gtk_drop_down_new_from_strings(speeds));
     gtk_drop_down_set_selected(GTK_DROP_DOWN(a->speed), 1);
     a->enigma_canvas = canvas(v, 485, enigma_view_draw, a);
@@ -225,10 +245,11 @@ void gui_build(App *a) {
     g_signal_connect(keyboard, "key-pressed", G_CALLBACK(app_keyboard_press), a);
     gtk_widget_add_controller(a->key_entry, keyboard);
     g_signal_connect(a->key_entry, "activate", G_CALLBACK(app_key_entered), a);
-    add(v, label("The illuminated route shows the actual electrical trace. Letter windows are "
-                 "sampled from precomputed keypresses; animation never changes the ciphertext.",
+    add(v, label("Follow the glowing path from the keyboard through the plugboard and rotors to "
+                 "the lamp. "
+                 "Try Step by step to see how a single letter changes.",
                  "subtitle"));
-    v = page(a, "plugboard", "PLUGBOARD", "STECKERBRETT");
+    v = page(a, "plugboard", "PLUGBOARD", "Connect the plugboard");
     add(v, label("Click two sockets to connect a pair. Click a connected socket to remove its "
                  "cable. Up to ten pairs; unconnected letters map to themselves.",
                  "subtitle"));
@@ -244,10 +265,14 @@ void gui_build(App *a) {
     button(row, "Apply pairs", G_CALLBACK(app_apply_plugs), a);
     button(row, "Randomize 10 pairs", G_CALLBACK(app_random_plugs), a);
     button(row, "Clear", G_CALLBACK(app_clear_plugs), a);
-    v = page(a, "message", "MESSAGE / INTERCEPT", "MESSAGE DESK");
+    v = page(a, "message", "MESSAGE / INTERCEPT", "Your message desk");
+    add(v, label("Write a secret, encrypt it, then turn it into a codebreaking challenge. "
+                 "Or paste a ciphertext of your own below.",
+                 "subtitle"));
     row = box(GTK_ORIENTATION_HORIZONTAL, 8);
     add(v, row);
-    button(row, "Encrypt", G_CALLBACK(app_encrypt), a);
+    gtk_widget_add_css_class(button(row, "Encrypt", G_CALLBACK(app_encrypt), a),
+                             "suggested-action");
     button(row, "Reset", G_CALLBACK(app_reset), a);
     button(row, "Hide as intercept", G_CALLBACK(app_keep_intercept), a);
     button(row, "Create random intercept", G_CALLBACK(app_intercept), a);
@@ -256,12 +281,9 @@ void gui_build(App *a) {
     a->auto_encrypt = gtk_check_button_new_with_label("Encrypt as I type");
     gtk_check_button_set_active(GTK_CHECK_BUTTON(a->auto_encrypt), TRUE);
     add(v, a->auto_encrypt);
-    a->plain = text_view(
-        v, "Plaintext  /  A-Z letters are retained; spaces and punctuation are removed", true, 115);
-    a->cipher =
-        text_view(v, "Intercepted ciphertext  /  editable for imported challenges", true, 115);
-    a->decrypted =
-        text_view(v, "Candidate decryption  /  activate a Bombe stop to inspect", false, 115);
+    a->plain = text_view(v, "Your message  /  letters A-Z", true, 115);
+    a->cipher = text_view(v, "Ciphertext  /  paste or edit a secret message", true, 115);
+    a->decrypted = text_view(v, "Candidate decryption  /  your selected answer", false, 115);
     row = box(GTK_ORIENTATION_HORIZONTAL, 8);
     add(v, row);
     button(row, "Reveal secret key", G_CALLBACK(app_reveal), a);
@@ -275,23 +297,27 @@ void gui_build(App *a) {
     add(row, a->scenario_path);
     button(row, "Save scenario", G_CALLBACK(app_save), a);
     button(row, "Load scenario", G_CALLBACK(app_load), a);
-    add(v,
-        label("Scenarios are local INI files. Saved challenges include their secret key and "
-              "plaintext for later reveal; do not distribute them if the secret must stay private.",
-              "subtitle"));
+    explanation(
+        v, "What gets saved?",
+        "Save a scenario to pick up where you left off. It keeps your settings and message. "
+        "Challenges also keep the original message and key for the Reveal button, so anyone "
+        "with the file can look them up. The search never uses them to rate answers.");
     g_signal_connect(gtk_text_view_get_buffer(GTK_TEXT_VIEW(a->plain)), "changed",
                      G_CALLBACK(app_plain_changed), a);
     g_signal_connect(gtk_text_view_get_buffer(GTK_TEXT_VIEW(a->cipher)), "changed",
                      G_CALLBACK(app_menu_changed), a);
-    v = page(a, "menu", "CRIB / MENU", "BUILD THE MENU");
+    v = page(a, "menu", "CRIB / MENU", "Follow a clue");
+    add(v, label("Think you know a phrase in the message? That clue is called a crib. "
+                 "Slide it along the ciphertext and watch the connections appear.",
+                 "subtitle"));
     row = box(GTK_ORIENTATION_HORIZONTAL, 10);
     add(v, row);
     a->crib =
         field(row, "Suspected plaintext, 8-256 letters for a search", entry("WETTERBERICHT", 45));
     gtk_widget_set_hexpand(a->crib, TRUE);
     gtk_entry_set_max_length(GTK_ENTRY(a->crib), LAB_CRIB_MAX);
-    a->alignment =
-        field(row, "Offset, zero based", gtk_spin_button_new_with_range(0, LAB_TEXT_MAX - 1, 1));
+    a->alignment = field(row, "Clue position, 0 = beginning",
+                         gtk_spin_button_new_with_range(0, LAB_TEXT_MAX - 1, 1));
     row = box(GTK_ORIENTATION_HORIZONTAL, 8);
     add(v, row);
     button(row, "Previous alignment", G_CALLBACK(app_previous_alignment), a);
@@ -300,15 +326,16 @@ void gui_build(App *a) {
     a->menu_label = label("Enter ciphertext to build the menu.", "stats");
     add(v, a->menu_label);
     a->menu_canvas = canvas(v, 540, menu_view_draw, a);
-    add(v, label("Each edge enforces P(cipher) = S(position, P(plain)). Amber edges close cycles "
-                 "in a spanning forest. Labels use zero-based message positions. More cycles "
-                 "usually give stronger contradictions.",
-                 "subtitle"));
+    explanation(v, "Reading the connection map",
+                "Each line links a letter in your clue to a letter in the ciphertext. "
+                "Amber lines complete loops, which help rule out wrong settings. "
+                "The numbers show message positions, starting at zero. In the circuit, each "
+                "connection must satisfy P(cipher) = S(position, P(plain)).");
     g_signal_connect(a->crib, "changed", G_CALLBACK(app_menu_changed), a);
     g_signal_connect(a->alignment, "value-changed", G_CALLBACK(app_menu_changed), a);
-    v = page(a, "bombe", "BOMBE", "THE BOMBE ROOM");
-    add(v, label("One virtual rack per modern CPU worker. The racks display sampled states, not "
-                 "individual tests or the speed of wartime machinery.",
+    v = page(a, "bombe", "BOMBE", "The codebreaking room");
+    add(v, label("Choose your approach, start the search, and watch the rotors spin. "
+                 "Open a candidate below when something looks promising.",
                  "subtitle"));
     row = box(GTK_ORIENTATION_HORIZONTAL, 8);
     add(v, row);
@@ -321,15 +348,41 @@ void gui_build(App *a) {
         GtkWidget *b = button(row, name, G_CALLBACK(thread_preset), a);
         g_object_set_data(G_OBJECT(b), "threads", GUINT_TO_POINTER(presets[i]));
     }
-    const char *modes[] = {"Training / modern accelerated", "Training / historical display",
-                           "Advanced / unknown rings", NULL};
+    row = box(GTK_ORIENTATION_HORIZONTAL, 8);
+    add(v, row);
+    const char *modes[] = {"Training / with a clue", "Training / classic display",
+                           "Advanced / unknown rings", "No crib / English detective", NULL};
     a->mode = field(row, "Search mode", gtk_drop_down_new_from_strings(modes));
     a->stop_limit = field(row, "Stops/state, 0 = all", gtk_spin_button_new_with_range(0, 4096, 1));
     gtk_spin_button_set_value(GTK_SPIN_BUTTON(a->stop_limit), 64);
-    add(v, label("Training: known rings and reflector, 1,054,560 rotor states. Advanced: all "
-                 "rings, 18,534,946,560 states. Reflector remains known. Historical display uses "
-                 "the same unrestricted search.",
+    row = box(GTK_ORIENTATION_HORIZONTAL, 8);
+    add(v, row);
+    a->blind_restarts =
+        field(row, "No-crib attempts per rotor state", gtk_spin_button_new_with_range(1, 16, 1));
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(a->blind_restarts), 2);
+    g_object_set_data(G_OBJECT(a->blind_restarts), "controls-row", row);
+    g_signal_connect(a->mode, "notify::selected", G_CALLBACK(search_mode_changed), a);
+    search_mode_changed(NULL, NULL, a);
+    add(v, label("New here? Try Training with a clue. For a puzzle without a clue, choose "
+                 "English detective and let letter patterns guide the search.",
                  "subtitle"));
+    explanation(
+        v, "Choose your search adventure",
+        "Training uses your clue, ring settings and reflector to explore every rotor order "
+        "and starting position. Classic display changes the presentation of the same search. "
+        "Advanced also searches the ring settings, making a much larger puzzle.\n\n"
+        "English detective needs only ciphertext plus the ring settings and reflector on "
+        "ENIGMA. It finds rotor settings and tries plugboard connections using English letter "
+        "patterns. Your clue, rotor order, starting windows and plugboard controls are ignored. "
+        "Use at least 50 letters; 300-500 letters of ordinary English make a good first puzzle. "
+        "More attempts explore more plugboards and take longer. A full search can take hours, "
+        "but you can stop and read the best candidates at any time.");
+    explanation(
+        v, "Search size and controls",
+        "Training and English detective explore 1,054,560 rotor states. Advanced explores "
+        "18,534,946,560 states. CPU workers share the search across your processor. "
+        "Stops/state limits the number of clue-fitting answers kept per rotor state; "
+        "0 keeps all. No-crib attempts controls the plugboard search in English detective.");
     row = box(GTK_ORIENTATION_HORIZONTAL, 8);
     add(v, row);
     a->start_button = button(row, "START BOMBE", G_CALLBACK(app_start), a);
@@ -342,7 +395,7 @@ void gui_build(App *a) {
     a->progress = gtk_progress_bar_new();
     gtk_progress_bar_set_show_text(GTK_PROGRESS_BAR(a->progress), TRUE);
     add(v, a->progress);
-    a->stats = label("No search running.", "stats");
+    a->stats = label("Your next puzzle starts here. Choose a mode and press START BOMBE.", "stats");
     add(v, a->stats);
     a->graph_canvas = canvas(v, 115, graph_view_draw, a);
     GtkWidget *worker_scroll = gtk_scrolled_window_new();
@@ -354,7 +407,9 @@ void gui_build(App *a) {
     gtk_drawing_area_set_content_height(GTK_DRAWING_AREA(a->bombe_canvas), 320);
     gtk_drawing_area_set_draw_func(GTK_DRAWING_AREA(a->bombe_canvas), bombe_view_draw, a, NULL);
     gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(worker_scroll), a->bombe_canvas);
-    add(v, label("BOMBE STOPS  /  activate a row to load its machine and decryption", "section"));
+    add(v, label("Candidate answers  /  highest English confidence first", "section"));
+    add(v, label("Double-click an answer, or select it and press Enter, to read the full message.",
+                 "subtitle"));
     GtkWidget *results_scroll = gtk_scrolled_window_new();
     gtk_widget_set_size_request(results_scroll, -1, 220);
     add(v, results_scroll);
@@ -363,22 +418,26 @@ void gui_build(App *a) {
     gtk_list_box_set_sort_func(GTK_LIST_BOX(a->results), candidate_sort, NULL, NULL);
     gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(results_scroll), a->results);
     g_signal_connect(a->results, "row-activated", G_CALLBACK(app_candidate_activated), a);
-    add(v, label("Stops satisfy the crib; they are not proof of readable plaintext. Unresolved "
-                 "letters are listed and use identity for preview. Rows are ranked by a simple "
-                 "language score. The GUI retains 2,000 "
-                 "rows; queue overflow and per-state stop limits are reported.",
-                 "subtitle"));
-    v = page(a, "benchmark", "BENCHMARK", "CPU SCALING");
+    explanation(v, "What does English confidence mean?",
+                "The percentage rates how closely the decoded letters resemble English. Higher "
+                "scores appear first. It is a reading guide, not a measured probability of the "
+                "correct key. Read the whole message and decide for yourself.\n\n"
+                "The original answer is never used to score, rank or approve candidates. "
+                "In clue-based modes, answers also fit your crib. Hover over a row for its raw "
+                "language score. The list keeps the best 2,000 received answers; the dashboard "
+                "reports any search or queue limits.");
+    v = page(a, "benchmark", "BENCHMARK", "How fast can you crack it?");
     row = box(GTK_ORIENTATION_HORIZONTAL, 8);
     add(v, row);
     button(row, "Run benchmark", G_CALLBACK(app_benchmark), a);
     button(row, "Stop benchmark / search", G_CALLBACK(app_stop), a);
-    add(v, label("Measured constraint-kernel work, using CLOCK_MONOTONIC. Each row repeats the "
-                 "same 65,536-state workload for at least 0.75 seconds. Pool creation is excluded. "
-                 "Job dispatch and completion wakeups are included. Pause other CPU-heavy work for "
-                 "useful "
-                 "comparisons.",
+    add(v, label("See how sharing the work across CPU cores changes search speed. "
+                 "Run the comparison, then try a different worker count in the Bombe room.",
                  "subtitle"));
+    explanation(v, "How the speed test works",
+                "Each row repeats the same 65,536-state workload for at least 0.75 seconds. "
+                "Timing includes dispatch and completion, but excludes starting the worker pool. "
+                "For a clearer comparison, pause other CPU-heavy work while the test runs.");
     a->benchmark_text = label("Threads        states/sec       speedup     efficiency", "stats");
     add(v, a->benchmark_text);
     a->benchmark_canvas = canvas(v, 420, benchmark_view_draw, a);

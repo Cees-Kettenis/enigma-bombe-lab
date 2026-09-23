@@ -1,4 +1,5 @@
 #include "app.h"
+#include "blind.h"
 #include "gui.h"
 #include "plugboard.h"
 #include "rotor.h"
@@ -429,7 +430,7 @@ static void clear_results(App *a) {
     GtkWidget *child;
     while ((child = gtk_widget_get_first_child(a->results)))
         gtk_list_box_remove(GTK_LIST_BOX(a->results), child);
-    a->result_count = a->solved_count = 0;
+    a->result_count = 0;
 }
 void app_start(GtkButton *button, gpointer data) {
     (void)button;
@@ -438,19 +439,45 @@ void app_start(GtkButton *button, gpointer data) {
         app_status(a, "Stop the current search or benchmark before starting another.");
         return;
     }
-    if (!app_read_key(a))
-        return;
+    bool blind = gtk_drop_down_get_selected(GTK_DROP_DOWN(a->mode)) == 3;
+    uint8_t rings[3], reflector;
+    if (blind) {
+        unsigned selected = gtk_drop_down_get_selected(GTK_DROP_DOWN(a->reflector));
+        if (!letters3(gtk_editable_get_text(GTK_EDITABLE(a->rings)), rings) || selected > 1) {
+            app_status(a, "Supply three ring letters and reflector B or C for no-crib search.");
+            return;
+        }
+        reflector = (uint8_t)selected;
+    } else {
+        if (!app_read_key(a))
+            return;
+        memcpy(rings, a->key.ring, 3);
+        reflector = a->key.reflector;
+    }
     char *cipher = app_text(a->cipher);
     const char *crib = gtk_editable_get_text(GTK_EDITABLE(a->crib));
     SearchSpec spec;
+    uint64_t blind_seed = 0;
+    if (blind) {
+        blind_seed = (uint64_t)lab_random(&a->random_seed) << 32;
+        blind_seed |= lab_random(&a->random_seed);
+    }
     bool valid =
-        search_spec_init(&spec, cipher, crib,
-                         (unsigned)gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(a->alignment)),
-                         a->key.ring, a->key.reflector);
+        blind ? blind_spec_init(
+                    &spec, cipher, rings, reflector,
+                    (unsigned)gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(a->blind_restarts)),
+                    blind_seed)
+              : search_spec_init(
+                    &spec, cipher, crib,
+                    (unsigned)gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(a->alignment)),
+                    rings, reflector);
     g_free(cipher);
-    if (!valid || strlen(spec.crib) < 8) {
-        app_status(a, "Use a valid crib alignment with at least eight letters. More cycles reduce "
-                      "ambiguity.");
+    if (!valid || (!blind && strlen(spec.crib) < 8)) {
+        app_status(
+            a, blind
+                   ? "No-crib search needs at least 50 A-Z letters and fewer than 2048 input bytes."
+                   : "Use a valid crib alignment with at least eight letters. More cycles reduce "
+                     "ambiguity.");
         return;
     }
     spec.advanced = gtk_drop_down_get_selected(GTK_DROP_DOWN(a->mode)) == 2;
@@ -492,6 +519,13 @@ void app_start(GtkButton *button, gpointer data) {
     a->started_search = true;
     search_pool_snapshot(a->pool, &a->snapshot, a->workers);
     gtk_stack_set_visible_child_name(GTK_STACK(a->stack), "bombe");
+    if (blind) {
+        app_status(a,
+                   "No-crib English search started. Rings and reflector are supplied; all other "
+                   "settings are explored using English letter patterns. Watch the candidate list; "
+                   "you can stop and inspect an answer at any time.");
+        return;
+    }
     app_status(
         a,
         "Searching %" G_GUINT64_FORMAT
@@ -502,7 +536,7 @@ void app_pause(GtkButton *button, gpointer data) {
     (void)button;
     App *a = data;
     search_pool_pause(a->pool, true);
-    app_status(a, "Pause requested. Workers finish their current 64-state work unit.");
+    app_status(a, "Pause requested. Workers finish their current work unit.");
 }
 void app_resume(GtkButton *button, gpointer data) {
     (void)button;
@@ -534,42 +568,26 @@ void app_benchmark(GtkButton *button, gpointer data) {
         app_status(a, "Benchmark is already running or could not start.");
 }
 static void candidate_description(const Candidate *c, char *out, size_t capacity) {
-    char pairs[80], unknown[27];
+    char pairs[80];
     plugboard_format(c->key.plug, pairs);
-    int n = 0;
-    for (int i = 0; i < 26; i++)
-        if (c->deductions[i] < 0)
-            unknown[n++] = (char)('A' + i);
-    unknown[n] = 0;
     g_snprintf(out, capacity,
-               "%s %s %s    %c%c%c    rings %c%c%c    UKW %c    worker %u    +%.2fs\n%s   |   "
-               "unresolved: %s   |   crib verified   |   score %.3f\n%.110s",
-               rotor_names[c->key.order[0]], rotor_names[c->key.order[1]],
+               "English confidence %.1f%%  |  %s\n"
+               "%.110s\n"
+               "%s %s %s  ·  %c%c%c  ·  rings %c%c%c  ·  reflector %c  ·  worker %u  ·  %.2fs\n%s",
+               blind_confidence_percent(c->score), c->heuristic ? "No crib" : "Fits supplied crib",
+               c->plaintext, rotor_names[c->key.order[0]], rotor_names[c->key.order[1]],
                rotor_names[c->key.order[2]], 'A' + c->key.start[0], 'A' + c->key.start[1],
                'A' + c->key.start[2], 'A' + c->key.ring[0], 'A' + c->key.ring[1],
                'A' + c->key.ring[2], 'B' + c->key.reflector, c->worker + 1, c->elapsed,
-               *pairs ? pairs : "No paired letters", *unknown ? unknown : "none", c->score,
-               c->plaintext);
+               *pairs ? pairs : "No paired letters");
 }
-static void add_candidate(App *a, const Candidate *c) {
+static void add_candidate(App *a, const Candidate *candidate) {
+    /* Rank every mode on the same text-only English model. Never consult Challenge. */
+    Candidate rated = *candidate;
+    rated.score = blind_english_score(rated.plaintext);
+    const Candidate *c = &rated;
     if (c->worker < a->pool_threads)
         a->worker_flashes[c->worker] = lab_now();
-    /* Validation happens after independent menu solving and full-message decryption. */
-    char challenge_cipher[LAB_TEXT_MAX] = "";
-    if (a->challenge.present)
-        enigma_text(&a->challenge.key, a->challenge.plaintext, challenge_cipher,
-                    sizeof challenge_cipher);
-    if (a->challenge.present && !strcmp(challenge_cipher, a->active_spec.cipher) &&
-        !strcmp(c->plaintext, a->challenge.plaintext)) {
-        a->solved_count++;
-        app_set_text(a->decrypted, c->plaintext);
-        app_status(
-            a,
-            "Challenge plaintext recovered independently. Candidate %s %s %s / %c%c%c, worker %u.",
-            rotor_names[c->key.order[0]], rotor_names[c->key.order[1]],
-            rotor_names[c->key.order[2]], 'A' + c->key.start[0], 'A' + c->key.start[1],
-            'A' + c->key.start[2], c->worker + 1);
-    }
     if (a->result_count >= 2000) {
         GtkListBoxRow *last = gtk_list_box_get_row_at_index(GTK_LIST_BOX(a->results), 1999);
         Candidate *lowest = g_object_get_data(G_OBJECT(last), "candidate");
@@ -581,6 +599,13 @@ static void add_candidate(App *a, const Candidate *c) {
     char text[640];
     candidate_description(c, text, sizeof text);
     GtkWidget *row = gtk_list_box_row_new(), *label = gtk_label_new(text);
+    char detail[320];
+    g_snprintf(
+        detail, sizeof detail,
+        "English confidence %.1f%%: text-only heuristic, not a calibrated chance of correctness. "
+        "No original answer is consulted. Raw trigram score %.3f. Inspect the whole message.",
+        blind_confidence_percent(c->score), c->score);
+    gtk_widget_set_tooltip_text(row, detail);
     gtk_label_set_xalign(GTK_LABEL(label), 0);
     gtk_label_set_wrap(GTK_LABEL(label), TRUE);
     gtk_label_set_wrap_mode(GTK_LABEL(label), PANGO_WRAP_WORD_CHAR);
@@ -589,7 +614,7 @@ static void add_candidate(App *a, const Candidate *c) {
     pango_attr_list_insert(attributes, pango_attr_line_height_new(1.25));
     gtk_label_set_attributes(GTK_LABEL(label), attributes);
     pango_attr_list_unref(attributes);
-    gtk_widget_add_css_class(label, "stats");
+    gtk_widget_add_css_class(label, "candidate");
     gtk_list_box_row_set_child(GTK_LIST_BOX_ROW(row), label);
     Candidate *copy = g_new(Candidate, 1);
     *copy = *c;
@@ -610,9 +635,9 @@ void app_candidate_activated(GtkListBox *box, GtkListBoxRow *row, gpointer data)
     app_set_text(a->decrypted, c->plaintext);
     gtk_stack_set_visible_child_name(GTK_STACK(a->stack), "message");
     app_status(a,
-               "Candidate loaded into Enigma. %u unresolved letters use identity in the preview; a "
-               "crib-consistent stop may still be wrong.",
-               c->unresolved);
+               "Candidate loaded with %.1f%% English confidence. Read the full message below. "
+               "No original answer was checked.",
+               blind_confidence_percent(c->score));
 }
 static gboolean refresh(gpointer data) {
     App *a = data;
@@ -648,14 +673,24 @@ static gboolean refresh(gpointer data) {
                        "     Remaining  %" G_GUINT64_FORMAT
                        "     Elapsed  %.1fs\nActual  %.0f states/s     Average  %.0f /s     "
                        "Contradictions  %" G_GUINT64_FORMAT
-                       "\nBombe stops / verified  %" G_GUINT64_FORMAT
-                       "     Challenge matches  %u     Workers  %u     Rotor orders completed  "
+                       "\nCrib-consistent stops  %" G_GUINT64_FORMAT
+                       "     Workers  %u     Rotor orders completed  "
                        "%u\nStop-capped states  %" G_GUINT64_FORMAT
                        "     Queue overflow  %" G_GUINT64_FORMAT "     Displayed  %u / 2000",
                        s->tested, s->total, s->total - s->tested, s->elapsed, rate, average,
-                       s->rejected, s->stops, a->solved_count, s->threads, s->orders_completed,
-                       s->truncated, s->dropped, a->result_count);
+                       s->rejected, s->stops, s->threads, s->orders_completed, s->truncated,
+                       s->dropped, a->result_count);
             gtk_label_set_text(GTK_LABEL(a->stats), stats);
+            if (a->active_spec.blind) {
+                g_snprintf(stats, sizeof stats,
+                           "No crib / English guesses: %" G_GUINT64_FORMAT " / %" G_GUINT64_FORMAT
+                           " rotor states\n%.1f states/sec | elapsed %.1fs | workers %u | "
+                           "improving guesses shown %u\n"
+                           "Progress tracks rotor states. English confidence rates each candidate. "
+                           "Inspect the best answers while the search continues.",
+                           s->tested, s->total, average, s->elapsed, s->threads, a->result_count);
+                gtk_label_set_text(GTK_LABEL(a->stats), stats);
+            }
             double fraction = s->total ? (double)s->tested / (double)s->total : 0;
             gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(a->progress), fraction);
             char p[80];
@@ -670,12 +705,19 @@ static gboolean refresh(gpointer data) {
         if (gtk_drawing_area_get_content_height(GTK_DRAWING_AREA(a->bombe_canvas)) != h)
             gtk_drawing_area_set_content_height(GTK_DRAWING_AREA(a->bombe_canvas), h);
         gtk_widget_queue_draw(a->bombe_canvas);
-        if (was_running && !a->snapshot.running)
+        if (was_running && !a->snapshot.running && a->active_spec.blind)
+            app_status(
+                a,
+                "No-crib search ended after %" G_GUINT64_FORMAT
+                " rotor states. Inspect the highest English confidence. A guess is not proof of "
+                "the key.",
+                a->snapshot.tested);
+        else if (was_running && !a->snapshot.running)
             app_status(a,
                        "Search %s. %" G_GUINT64_FORMAT " states, %" G_GUINT64_FORMAT
-                       " verified stops, %u challenge plaintext matches.",
+                       " crib-consistent stops.",
                        a->snapshot.tested == a->snapshot.total ? "completed" : "stopped",
-                       a->snapshot.tested, a->snapshot.stops, a->solved_count);
+                       a->snapshot.tested, a->snapshot.stops);
     }
     benchmark_snapshot(&a->benchmark, a->benchmark_rows, &a->benchmark_count,
                        &a->benchmark_running);
@@ -700,6 +742,7 @@ static gboolean refresh(gpointer data) {
     gtk_widget_set_sensitive(a->threads, !a->snapshot.running && !a->benchmark_running);
     gtk_widget_set_sensitive(a->mode, !a->snapshot.running);
     gtk_widget_set_sensitive(a->stop_limit, !a->snapshot.running);
+    gtk_widget_set_sensitive(a->blind_restarts, !a->snapshot.running);
     gtk_widget_set_sensitive(a->benchmark_button, !a->snapshot.running && !a->benchmark_running);
     tutorial_refresh(a);
     return G_SOURCE_CONTINUE;
@@ -768,6 +811,8 @@ void app_save(GtkButton *button, gpointer data) {
                            gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(a->alignment)));
     g_key_file_set_integer(file, "Message", "mode",
                            (int)gtk_drop_down_get_selected(GTK_DROP_DOWN(a->mode)));
+    g_key_file_set_integer(file, "Message", "blind_restarts",
+                           gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(a->blind_restarts)));
     g_key_file_set_integer(file, "Message", "stop_limit",
                            gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(a->stop_limit)));
     g_key_file_set_boolean(file, "Message", "random_rings",
@@ -807,10 +852,14 @@ static bool load_path(App *a, const char *path) {
     int stop_limit = g_key_file_has_key(file, "Message", "stop_limit", NULL)
                          ? g_key_file_get_integer(file, "Message", "stop_limit", NULL)
                          : 64;
+    int blind_restarts = g_key_file_has_key(file, "Message", "blind_restarts", NULL)
+                             ? g_key_file_get_integer(file, "Message", "blind_restarts", NULL)
+                             : 2;
+    ok = ok && blind_restarts >= 1 && blind_restarts <= 16;
     ok = ok && stop_limit >= 0 && stop_limit <= 4096;
     ok = ok && plain && cipher && crib && strlen(plain) < LAB_TEXT_MAX &&
          strlen(cipher) < LAB_TEXT_MAX && strlen(crib) <= LAB_CRIB_MAX && off >= 0 &&
-         off < LAB_TEXT_MAX && mode >= 0 && mode < 3;
+         off < LAB_TEXT_MAX && mode >= 0 && mode <= 3;
     if (g_key_file_has_group(file, "Challenge")) {
         char *secret = g_key_file_get_string(file, "Challenge", "plaintext", NULL);
         challenge.present = true;
@@ -844,6 +893,7 @@ static bool load_path(App *a, const char *path) {
         gtk_spin_button_set_value(GTK_SPIN_BUTTON(a->alignment), off);
         gtk_drop_down_set_selected(GTK_DROP_DOWN(a->mode), (guint)mode);
         gtk_spin_button_set_value(GTK_SPIN_BUTTON(a->stop_limit), stop_limit);
+        gtk_spin_button_set_value(GTK_SPIN_BUTTON(a->blind_restarts), blind_restarts);
         gtk_check_button_set_active(GTK_CHECK_BUTTON(a->random_rings),
                                     g_key_file_get_boolean(file, "Message", "random_rings", NULL));
         a->loading = false;
@@ -877,8 +927,8 @@ static gboolean smoke_end(gpointer data) {
         g_assert_cmpstr(preview, ==, example_plain);
         g_free(preview);
     }
-    g_print("GUI smoke: tested=%" G_GUINT64_FORMAT " stops=%" G_GUINT64_FORMAT " recovered=%u\n",
-            a->snapshot.tested, a->snapshot.stops, a->solved_count);
+    g_print("GUI smoke: tested=%" G_GUINT64_FORMAT " stops=%" G_GUINT64_FORMAT "\n",
+            a->snapshot.tested, a->snapshot.stops);
     if (a->benchmark_requested) {
         g_assert_cmpint(a->benchmark_running, ==, FALSE);
         g_assert_cmpuint(a->benchmark_count, >, 0);

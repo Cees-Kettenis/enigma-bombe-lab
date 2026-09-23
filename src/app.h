@@ -18,6 +18,7 @@ typedef struct App {
     GtkWidget *enigma_canvas, *plug_canvas, *menu_canvas, *bombe_canvas, *graph_canvas,
         *benchmark_canvas;
     GtkWidget *threads, *speed, *mode, *stop_limit, *auto_encrypt, *random_rings, *progress;
+    GtkWidget *blind_restarts;
     GtkWidget *stats, *results, *benchmark_text, *scenario_path, *key_entry;
     GtkWidget *start_button, *pause_button, *resume_button, *stop_button, *benchmark_button;
     EnigmaKey key;
@@ -46,7 +47,7 @@ typedef struct App {
     double history[240], history_max, last_sample;
     unsigned history_count, history_head;
     uint64_t last_tested;
-    unsigned result_count, solved_count;
+    unsigned result_count;
     guint timer, encrypt_timer;
 } App;
 void app_activate(GtkApplication *application, gpointer data);

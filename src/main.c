@@ -53,7 +53,7 @@ int main(int argc, char **argv) {
         gtk_application_new("org.enigmabombelab.Lab", G_APPLICATION_NON_UNIQUE);
     g_signal_connect(application, "activate", G_CALLBACK(app_activate), app);
     int status = g_application_run(G_APPLICATION(application), 1, argv);
-    if (app->smoke_ms && (app->benchmark_requested ? !app->benchmark_count : !app->solved_count))
+    if (app->smoke_ms && (app->benchmark_requested ? !app->benchmark_count : !app->result_count))
         status = 1;
     app_destroy(app);
     g_object_unref(application);

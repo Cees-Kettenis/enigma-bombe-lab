@@ -8,7 +8,7 @@ void bombe_view_draw(GtkDrawingArea *area, cairo_t *cr, int width, int height, g
     App *a = data;
     if (!a->pool_threads) {
         gui_color(cr, .75, .78, .69);
-        gui_draw_text(cr, 25, 55, 18, "Load an intercept, build a menu, then start the Bombe.");
+        gui_draw_text(cr, 25, 55, 18, "Choose a search mode and start exploring your intercept.");
         return;
     }
     int columns = MAX(1, width / 290);

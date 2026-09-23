@@ -124,7 +124,7 @@ For each rotor state the engine:
 
 There is no enumeration of all complete plugboards. The recursion assigns only letters needed by menu constraints and their involution partners. No allocation or string search occurs in the cipher loop. Candidate scoring runs only after a stop, using a modest English letter-frequency score and several English/German sequences. Rows sort by this score. It is a ranking aid, not proof of a solution.
 
-The `SearchSpec` interface contains ciphertext, crib/menu, public rings/reflector and search controls. It has no hidden plaintext or secret-key field. Only after a candidate has been independently generated does the GUI compare its plaintext with a matching generated challenge and report a challenge match. An equivalent recovered key may produce the same plaintext.
+The `SearchSpec` interface contains ciphertext, crib/menu, public rings/reflector and search controls. It has no hidden plaintext or secret-key field. The GUI never compares candidates with the hidden plaintext or generator key. All candidate ranking uses decrypted-text statistics alone. An equivalent recovered key may produce the same plaintext.
 
 ### Search modes
 
@@ -148,9 +148,40 @@ Pause parks workers on a condition variable after their current work unit. Resum
 
 GTK samples snapshots at 10 Hz. Throughput samples are taken about five times per second and the rolling graph stores 240 samples. Enigma uses GTK frame-clock callbacks. Workers do not access widgets, sleep for animations or emit a frame per searched state. One virtual rack represents one CPU worker for education; it does not represent one physical wartime Bombe.
 
-The dashboard reports tested/remaining states, percentage, elapsed wall time, current and average states/sec, contradictions, verified stops, completed rotor orders, worker count, challenge matches and output limits. Paused time is included in elapsed wall time. Current throughput falls to zero on pause/completion. No historical speed comparison is asserted.
+The dashboard reports tested/remaining states, percentage, elapsed wall time, current and average states/sec, contradictions, crib-consistent stops, completed rotor orders, worker count and output limits. Paused time is included in elapsed wall time. Current throughput falls to zero on pause/completion. No historical speed comparison is asserted.
 
 The candidate queue holds 256 entries. The GUI drains at most 32 each refresh and retains up to 2,000 score-ranked rows. Overflow is counted and displayed; the solver continues. Thus a weak menu can produce more genuine stops than the UI retains. Strengthen the crib to inspect a manageable set. Full candidate export is future work.
+
+### English detective search without a crib
+
+Mode 3 uses `blind_spec_init` instead of menu construction. Its inputs are normalized
+ciphertext, public rings/reflector, an attempt count and a random seed. It accepts
+50 to 2,047 normalized letters within the existing 2,047-byte raw input limit.
+The worker pool enumerates all training rotor states in single-state chunks.
+For each state, `blind_test_state` precomputes the rotor permutation at each
+message position. Plugboard hill climbing first maximizes index of coincidence,
+then the bundled English trigram score. Each phase permits up to 20 improving
+steps; there is no exhaustive plugboard search. Restarts are bounded to 1–16.
+
+Moves add/remove pairs and reconnect contacts while preserving an involution with
+at most ten pairs. Cancellation is checked while building maps and between move
+groups. Pause takes effect after the current rotor state. Workers publish only
+new global best English scores; a full queue discards the oldest guess to retain
+the new best. Candidate rows show a heuristic English confidence percentage, in all modes.
+No candidate is compared against a stored original or declared correct automatically.
+
+See [language-model.md](language-model.md) for the scoring corpus, generation
+procedure and its limitations. The deterministic tests cover an original 543-letter
+English message, ten plugs, nonzero rings and reflector C; a 24-state worker-pool
+search recovers its key. The GUI test removes the Challenge before starting and
+checks recovery with an empty crib and invalid ignored machine controls. These are
+regression examples, not a calibrated population success rate or 80% confidence
+claim. The supplied demo has an early correct state for a quick first result.
+
+The design follows the general ciphertext-only IC/hill-climbing approach discussed
+by Ostwald and Weierud in [Modern Breaking of Enigma Ciphertexts](https://www.cryptocellar.org/pubs/enigma-modern-breaking.pdf).
+This implementation does not reproduce their full algorithm or inherit their
+published recovery results.
 
 ### CPU benchmark
 

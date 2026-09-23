@@ -5,18 +5,24 @@ threads = dependency('threads')
 gtk = dependency('gtk4', version: '>=4.8', include_type: 'system')
 math = cc.find_library('m')
 inc = include_directories('src')
-core = static_library('enigma-core', ['src/rotor.c', 'src/plugboard.c', 'src/enigma.c', 'src/crib.c', 'src/menu.c', 'src/bombe.c', 'src/search_worker.c', 'src/benchmark.c'], include_directories: inc, dependencies: [threads, math])
+core = static_library('enigma-core', ['src/rotor.c', 'src/plugboard.c', 'src/enigma.c', 'src/crib.c', 'src/menu.c', 'src/bombe.c', 'src/blind.c', 'src/search_worker.c', 'src/benchmark.c'], include_directories: inc, dependencies: [threads, math])
 core_dep = declare_dependency(link_with: core, include_directories: inc, dependencies: [threads, math])
 gnome = import('gnome')
 res = gnome.compile_resources('lab-resources', 'resources/lab.gresource.xml', source_dir: 'resources', c_name: 'lab')
 gui_sources = ['src/app.c', 'src/scenario.c', 'src/tutorial.c', 'src/gui.c', 'src/enigma_view.c', 'src/bombe_view.c', 'src/menu_view.c', res]
 executable('enigma-bombe-lab', ['src/main.c', gui_sources], dependencies: [core_dep, gtk], install: true)
 tutorial_test = executable('test_tutorial', ['tests/test_tutorial.c', gui_sources], dependencies: [core_dep, gtk])
-test('tutorial', tutorial_test, suite: 'gui', timeout: 120)
+test('tutorial', tutorial_test, suite: 'gui', timeout: 120, is_parallel: false)
+blind_gui_test = executable('test_blind_gui', ['tests/test_blind_gui.c', gui_sources], dependencies: [core_dep, gtk])
+test('blind_gui', blind_gui_test, args: [meson.project_source_root() / 'examples/no-crib.ini'], suite: 'gui', timeout: 30, is_parallel: false)
+foreach verification : ['known', 'different']
+  test('blind_gui_' + verification, blind_gui_test, args: [meson.project_source_root() / 'examples/no-crib.ini', verification], suite: 'gui', timeout: 30, is_parallel: false)
+endforeach
 scenario_test = executable('test_scenario', ['tests/test_scenario.c', 'src/scenario.c'], include_directories: inc, dependencies: dependency('glib-2.0'))
 test('scenario', scenario_test)
-foreach name : ['enigma', 'menu', 'bombe']
+foreach name : ['enigma', 'menu', 'bombe', 'blind']
   t = executable('test_' + name, 'tests/test_' + name + '.c', dependencies: core_dep)
   test(name, t, timeout: 180)
 endforeach
 install_data('examples/training.ini', install_dir: get_option('datadir') / 'enigma-bombe-lab')
+install_data('examples/no-crib.ini', install_dir: get_option('datadir') / 'enigma-bombe-lab')

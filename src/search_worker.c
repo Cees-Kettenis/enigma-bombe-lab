@@ -1,4 +1,6 @@
 #include "search_worker.h"
+#include "blind.h"
+#include <float.h>
 #include <stdalign.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,6 +28,7 @@ struct SearchPool {
     Candidate queue[LAB_QUEUE_SIZE];
     unsigned head, used;
     uint64_t dropped;
+    double best_language_score;
     atomic_uint completed_orders[60 * 17576];
 };
 double lab_now(void) {
@@ -41,6 +44,19 @@ static bool found(const Candidate *c, void *data) {
     Worker *w = data;
     SearchPool *p = w->pool;
     pthread_mutex_lock(&p->mutex);
+    if (c->heuristic) {
+        if (c->score <= p->best_language_score) {
+            pthread_mutex_unlock(&p->mutex);
+            return !atomic_load(&p->cancel);
+        }
+        p->best_language_score = c->score;
+        /* Preserve new best guesses even when the GUI has not drained the queue. */
+        if (p->used == LAB_QUEUE_SIZE) {
+            p->head = (p->head + 1) % LAB_QUEUE_SIZE;
+            p->used--;
+            p->dropped++;
+        }
+    }
     if (p->used < LAB_QUEUE_SIZE) {
         unsigned i = (p->head + p->used) % LAB_QUEUE_SIZE;
         p->queue[i] = *c;
@@ -78,17 +94,20 @@ static void *worker_main(void *data) {
             pthread_mutex_unlock(&p->mutex);
             if (atomic_load(&p->cancel))
                 break;
-            uint64_t begin = atomic_fetch_add(&p->next, CHUNK);
+            unsigned chunk = p->spec.blind ? 1 : CHUNK;
+            uint64_t begin = atomic_fetch_add(&p->next, chunk);
             if (begin >= total)
                 break;
-            uint64_t end = begin + CHUNK;
+            uint64_t end = begin + chunk;
             if (end > total)
                 end = total;
             unsigned order = (unsigned)(begin / 17576), finished = 0;
             for (uint64_t i = begin; i < end; i++) {
                 if (atomic_load(&p->cancel))
                     break;
-                KernelResult r = bombe_test_state(&p->spec, i, found, w, &p->cancel);
+                KernelResult r = p->spec.blind
+                                     ? blind_test_state(&p->spec, i, found, w, &p->cancel)
+                                     : bombe_test_state(&p->spec, i, found, w, &p->cancel);
                 /* A cancelled state can already have published valid stops. Count those
                  * even though the rotor state itself was not searched to completion. */
                 snap.state = i;
@@ -214,6 +233,7 @@ bool search_pool_start(SearchPool *p, const SearchSpec *s) {
     p->spec = *s;
     p->head = p->used = 0;
     p->dropped = 0;
+    p->best_language_score = -DBL_MAX;
     p->started = lab_now();
     p->ended = 0;
     p->pending = p->count;

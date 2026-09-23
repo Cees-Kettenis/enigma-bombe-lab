@@ -8,6 +8,9 @@ typedef struct {
     Menu menu;
     uint8_t rings[3], reflector;
     bool advanced;
+    bool blind;
+    unsigned blind_restarts;
+    uint64_t blind_seed;
     uint64_t limit;
     unsigned max_stops_per_state;
 } SearchSpec;
@@ -17,6 +20,7 @@ typedef struct {
     unsigned unresolved, worker;
     uint64_t state;
     double elapsed, score;
+    bool heuristic;
     char plaintext[LAB_TEXT_MAX];
 } Candidate;
 typedef bool (*CandidateFn)(const Candidate *, void *);

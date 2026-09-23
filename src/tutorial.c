@@ -27,7 +27,7 @@ static const Lesson lessons[] = {
      "Continue below to choose a fresh set of ten pairs for the lesson.",
      "Randomize 10 pairs"},
     {"message", "Write and encrypt",
-     "Scroll to Plaintext. Keep the supplied first line for this lesson, but change the final "
+     "Scroll to Your message. Keep the supplied first line for this lesson, but change the final "
      "sentence to your own message. That first line will be the codebreaker's known phrase. "
      "Encrypt turns the text into ciphertext using your scrambled settings. Spaces and "
      "punctuation disappear; only A-Z are encrypted.",
@@ -51,7 +51,8 @@ static const Lesson lessons[] = {
      "the hidden key or message.",
      "START BOMBE"},
     {"bombe", "Watch for candidate answers",
-     "Watch the progress, then scroll down to the worker drums and BOMBE STOPS. Each stop is a "
+     "Watch the progress, then scroll down to the worker drums and Candidate answers. Each stop is "
+     "a "
      "candidate that fits the clue, not automatically the right answer. Pause, Resume and Stop "
      "are available below. When the search finishes, inspect the highest-ranked candidate. "
      "If you stop early, resume this lesson by pressing START BOMBE to run a fresh search.",
@@ -60,8 +61,8 @@ static const Lesson lessons[] = {
      "Scroll to Candidate decryption and check your final sentence. The selected candidate's "
      "settings are also loaded in ENIGMA and PLUGBOARD. Reveal secret key lets you compare "
      "with the original afterward. For another message, encrypt it, use Hide as intercept, "
-     "enter a phrase you expect in it, then START BOMBE. Without a useful crib, recovery is "
-     "not guaranteed. Tutorial in the header starts this lesson again.",
+     "enter a phrase you expect in it, then START BOMBE. Or try English detective to explore "
+     "a longer English message without a clue. Tutorial in the header starts this lesson again.",
      "Finish tutorial"},
 };
 

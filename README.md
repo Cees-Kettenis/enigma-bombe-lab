@@ -67,7 +67,7 @@ Click **Hide as intercept** to hide this message and its key while preserving th
 
 ### 3. Give the PC a clue
 
-Open **CRIB / MENU**. A *crib* is a phrase you think appears in the original message. The solver needs this clue; it cannot automatically crack every ciphertext on its own.
+Open **CRIB / MENU**. A *crib* is a phrase you think appears in the original message. Training and advanced modes need this clue. The no-crib mode below can attempt a search without it.
 
 Enter the phrase and its **Offset**. Offset **0** means the phrase starts at the first letter, **1** at the second letter, and so on. Count letters after spaces and punctuation have been removed. The tutorial fills in its known first line at offset 0.
 
@@ -94,6 +94,48 @@ Read **Candidate decryption** on **MESSAGE / INTERCEPT**. The candidate's settin
 ![Inspecting the independently recovered practice message](docs/screenshots/recovered.png)
 
 A stop means the candidate fits your clue. It may still be wrong. If the answer is incomplete or there are no stops, check the crib, offset, rings and reflector. Try a longer crib. The tutorial uses a deliberately long clue that covers the alphabet; a short real-world guess is harder.
+
+### Try without a crib
+
+Start with this ready-made English example:
+
+```sh
+./build/enigma-bombe-lab --threads 4 examples/no-crib.ini
+```
+
+On **BOMBE**, select **No crib / English detective** and click **START BOMBE**.
+Leave the crib empty. Double-click the highest-scoring row to read its decryption.
+Use **Stop** when you have a candidate to inspect. This example deliberately puts
+the correct rotor state early in the search so you can try the workflow quickly.
+It is not a timing benchmark for arbitrary messages.
+
+For your own message, encrypt English text, choose **Hide as intercept**, then use
+the same no-crib mode. It uses ciphertext and the supplied **rings and reflector**.
+It ignores the crib, rotor order, starting-window and plugboard controls, and never
+receives the hidden message or key. You can also paste ciphertext from elsewhere
+and set the known rings and reflector on **ENIGMA**.
+
+The search tries all 1,054,560 rotor states and improves plugboard guesses using
+English letter statistics. **No-crib attempts per rotor state** controls how many
+starting plugboards it tries. The first is empty; extra attempts use random plugs.
+More attempts take longer. A full run can take hours; Pause, Resume and Stop work
+while it runs. Results show improving guesses as they arrive.
+
+The minimum accepted input is **50 letters** after removing spaces and punctuation.
+For a first puzzle, use **300–500 letters of ordinary English**. This is a
+practical starting point, not an 80% confidence threshold. Short, repetitive,
+non-English or unusual text can produce convincing wrong answers. Even completing
+the rotor scan does not exhaust every plugboard.
+
+Every candidate shows **English confidence**, a heuristic percentage calculated
+only from its decrypted text. Higher values rank first. The app never compares
+candidates against the stored original, even for demos or self-made challenges.
+Read the full candidate message and decide for yourself.
+
+The percentage measures English-language fit on a fixed display scale. It is not
+a calibrated probability of recovering the correct message or settings. Hover a
+row for the underlying score. See [the scale definition](docs/language-model.md).
+The percentage is a guide to English resemblance.
 
 ### Come back later
 
