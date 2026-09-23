@@ -1,4 +1,5 @@
 #include "app.h"
+#include "scenario.h"
 #include <glib/gstdio.h>
 #include <string.h>
 
@@ -9,6 +10,40 @@ static unsigned phase;
 static char *expected_plain, *expected_cipher;
 static EnigmaKey expected_key;
 static double deadline;
+
+static void check_oversized_import(void) {
+    GError *error = NULL;
+    char *directory = g_dir_make_tmp("enigma-import-test-XXXXXX", &error);
+    g_assert_no_error(error);
+    char *path = g_build_filename(directory, "oversized.ini", NULL);
+    char *contents = g_malloc0(LAB_SCENARIO_MAX_BYTES + 2);
+    memset(contents, 'x', LAB_SCENARIO_MAX_BYTES + 1);
+    g_assert_true(g_file_set_contents(path, contents, LAB_SCENARIO_MAX_BYTES + 1, &error));
+    g_assert_no_error(error);
+    char *old_path = g_strdup(gtk_editable_get_text(GTK_EDITABLE(app.scenario_path)));
+    char *plain = app_text(app.plain), *cipher = app_text(app.cipher);
+    EnigmaKey key = app.key;
+    Challenge challenge = app.challenge;
+    gtk_editable_set_text(GTK_EDITABLE(app.scenario_path), path);
+    app_load(NULL, &app);
+    g_assert_nonnull(strstr(gtk_label_get_text(GTK_LABEL(app.status)), "64 KiB"));
+    char *after_plain = app_text(app.plain), *after_cipher = app_text(app.cipher);
+    g_assert_cmpstr(after_plain, ==, plain);
+    g_assert_cmpstr(after_cipher, ==, cipher);
+    g_assert_cmpmem(&app.key, sizeof key, &key, sizeof key);
+    g_assert_cmpmem(&app.challenge, sizeof challenge, &challenge, sizeof challenge);
+    gtk_editable_set_text(GTK_EDITABLE(app.scenario_path), old_path);
+    g_free(after_plain);
+    g_free(after_cipher);
+    g_free(plain);
+    g_free(cipher);
+    g_free(old_path);
+    g_free(contents);
+    g_assert_cmpint(g_remove(path), ==, 0);
+    g_assert_cmpint(g_rmdir(directory), ==, 0);
+    g_free(path);
+    g_free(directory);
+}
 
 static bool capture(const char *name) {
     const char *directory = g_getenv("LAB_SCREENSHOT_DIR");
@@ -112,6 +147,7 @@ static gboolean tick(gpointer data) {
         break;
     }
     case 6:
+        check_oversized_import();
         if (!capture("crib.png"))
             return G_SOURCE_CONTINUE;
         next(6);
@@ -160,6 +196,11 @@ static void activate(GtkApplication *application, gpointer data) {
     app.initial_threads = 4;
     app.tutorial_requested = true;
     app_activate(application, &app);
+    g_assert_nonnull(strstr(gtk_label_get_text(GTK_LABEL(app.status)), "64 KiB"));
+    char *initial_plain = app_text(app.plain);
+    g_assert_cmpstr(initial_plain, ==, "WETTERBERICHT");
+    g_assert_false(app.challenge.present);
+    g_free(initial_plain);
     gtk_stack_set_transition_type(GTK_STACK(app.stack), GTK_STACK_TRANSITION_TYPE_NONE);
     const char *size = g_getenv("LAB_TEST_SMALL_WINDOW");
     if (size)
@@ -179,11 +220,18 @@ int main(int argc, char **argv) {
         g_free(config);
         return 77;
     }
+    char *startup_path = g_build_filename(config, "oversized.ini", NULL);
+    char *oversized = g_malloc0(LAB_SCENARIO_MAX_BYTES + 1);
+    g_assert_true(g_file_set_contents(startup_path, oversized, LAB_SCENARIO_MAX_BYTES + 1, NULL));
+    g_free(oversized);
+    app.initial_file = g_strdup(startup_path);
     GtkApplication *application =
         gtk_application_new("org.enigmabombelab.TutorialTest", G_APPLICATION_NON_UNIQUE);
     g_signal_connect(application, "activate", G_CALLBACK(activate), NULL);
     int result = g_application_run(G_APPLICATION(application), argc, argv);
     app_destroy(&app);
+    g_assert_cmpint(g_remove(startup_path), ==, 0);
+    g_free(startup_path);
     g_object_unref(application);
     g_free(expected_plain);
     g_free(expected_cipher);

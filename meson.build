@@ -9,10 +9,12 @@ core = static_library('enigma-core', ['src/rotor.c', 'src/plugboard.c', 'src/eni
 core_dep = declare_dependency(link_with: core, include_directories: inc, dependencies: [threads, math])
 gnome = import('gnome')
 res = gnome.compile_resources('lab-resources', 'resources/lab.gresource.xml', source_dir: 'resources', c_name: 'lab')
-gui_sources = ['src/app.c', 'src/tutorial.c', 'src/gui.c', 'src/enigma_view.c', 'src/bombe_view.c', 'src/menu_view.c', res]
+gui_sources = ['src/app.c', 'src/scenario.c', 'src/tutorial.c', 'src/gui.c', 'src/enigma_view.c', 'src/bombe_view.c', 'src/menu_view.c', res]
 executable('enigma-bombe-lab', ['src/main.c', gui_sources], dependencies: [core_dep, gtk], install: true)
 tutorial_test = executable('test_tutorial', ['tests/test_tutorial.c', gui_sources], dependencies: [core_dep, gtk])
 test('tutorial', tutorial_test, suite: 'gui', timeout: 120)
+scenario_test = executable('test_scenario', ['tests/test_scenario.c', 'src/scenario.c'], include_directories: inc, dependencies: dependency('glib-2.0'))
+test('scenario', scenario_test)
 foreach name : ['enigma', 'menu', 'bombe']
   t = executable('test_' + name, 'tests/test_' + name + '.c', dependencies: core_dep)
   test(name, t, timeout: 180)

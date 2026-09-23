@@ -2,6 +2,7 @@
 #include "gui.h"
 #include "plugboard.h"
 #include "rotor.h"
+#include "scenario.h"
 #include <glib/gstdio.h>
 #include <math.h>
 #include <stdarg.h>
@@ -789,7 +790,7 @@ void app_save(GtkButton *button, gpointer data) {
 static bool load_path(App *a, const char *path) {
     GKeyFile *file = g_key_file_new();
     GError *error = NULL;
-    if (!g_key_file_load_from_file(file, path, G_KEY_FILE_NONE, &error)) {
+    if (!scenario_load_file(file, path, &error)) {
         app_status(a, "Load failed: %s", error->message);
         g_clear_error(&error);
         g_key_file_unref(file);

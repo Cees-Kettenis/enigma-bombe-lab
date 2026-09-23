@@ -160,7 +160,11 @@ A background coordinator waits on the pool's completion condition rather than th
 
 ## Save and load
 
-Enter a filename or full path on the message desk and use **Save scenario** or **Load scenario**. The INI format uses GLib KeyFile:
+Enter a filename or full path on the message desk and use **Save scenario** or **Load scenario**.
+
+Scenario imports are limited to 64 KiB, including comments and unused keys. Both startup and the Load button enforce this limit while reading, before INI parsing. A rejected import leaves the current scenario unchanged.
+
+The INI format uses GLib KeyFile:
 
 - `[Machine]`: rotor numbers from left to right, three-letter rings/windows, plugboard pairs and reflector.
 - `[Message]`: plaintext, ciphertext, crib, normalized offset, mode, random-ring preference and stop limit.
