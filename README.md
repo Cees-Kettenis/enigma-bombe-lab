@@ -43,11 +43,11 @@ Click **Tutorial** in the top-right corner, or launch with `--tutorial`. Follow 
 
 Starting the lesson replaces your current message and settings. Opening the tutorial does not. You can exit at any time and keep working with the current message.
 
-![The built-in tutorial above the Enigma controls](docs/screenshots/tutorial-compact.png)
-
 ### 1. Scramble the machine
 
 On **ENIGMA**, click **Randomize machine**. This chooses the rotor order, starting letters and ten plugboard pairs. Leave **Randomize rings too** off for your first attempts, with Ringstellung **AAA** and reflector **B**.
+
+![Compact Enigma controls above the animated rotors, signal path and lampboard](docs/screenshots/enigma.png)
 
 On **PLUGBOARD**, the cables swap pairs of letters. You can click two sockets to connect them, click a connected socket to remove its cable, or use **Randomize 10 pairs**.
 
