@@ -51,14 +51,13 @@ static const Lesson lessons[] = {
      "the hidden key or message.",
      "START BOMBE"},
     {"bombe", "Watch for candidate answers",
-     "Watch the progress, then scroll down to the worker drums and Candidate answers. Each stop is "
-     "a "
+     "Watch the progress and worker drums beside the candidate answers. Each stop is a "
      "candidate that fits the clue, not automatically the right answer. Pause, Resume and Stop "
      "are available below. When the search finishes, inspect the highest-ranked candidate. "
      "If you stop early, resume this lesson by pressing START BOMBE to run a fresh search.",
      "Waiting for search..."},
     {"message", "Read your recovered message",
-     "Scroll to Candidate decryption and check your final sentence. The selected candidate's "
+     "Read Candidate decryption and check your final sentence. The selected candidate's "
      "settings are also loaded in ENIGMA and PLUGBOARD. Reveal secret key lets you compare "
      "with the original afterward. For another message, encrypt it, use Hide as intercept, "
      "enter a phrase you expect in it, then START BOMBE. Or try English detective to explore "

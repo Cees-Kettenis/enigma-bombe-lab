@@ -49,6 +49,8 @@ Starting the lesson replaces your current message and settings. Opening the tuto
 
 On **ENIGMA**, click **Randomize machine**. This chooses the rotor order, starting letters and ten plugboard pairs. Leave **Randomize rings too** off for your first attempts, with Ringstellung **AAA** and reflector **B**.
 
+![Compact Enigma controls above the animated rotors, signal path and lampboard](docs/screenshots/enigma.png)
+
 On **PLUGBOARD**, the cables swap pairs of letters. You can click two sockets to connect them, click a connected socket to remove its cable, or use **Randomize 10 pairs**.
 
 ![The plugboard and its letter-swapping cables](docs/screenshots/plugboard.png)

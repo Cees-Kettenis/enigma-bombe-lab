@@ -21,6 +21,7 @@ static void check_oversized_import(void) {
     g_assert_true(g_file_set_contents(path, contents, LAB_SCENARIO_MAX_BYTES + 1, &error));
     g_assert_no_error(error);
     char *old_path = g_strdup(gtk_editable_get_text(GTK_EDITABLE(app.scenario_path)));
+    char *old_status = g_strdup(gtk_label_get_text(GTK_LABEL(app.status)));
     char *plain = app_text(app.plain), *cipher = app_text(app.cipher);
     EnigmaKey key = app.key;
     Challenge challenge = app.challenge;
@@ -33,6 +34,8 @@ static void check_oversized_import(void) {
     g_assert_cmpmem(&app.key, sizeof key, &key, sizeof key);
     g_assert_cmpmem(&app.challenge, sizeof challenge, &challenge, sizeof challenge);
     gtk_editable_set_text(GTK_EDITABLE(app.scenario_path), old_path);
+    app_status(&app, "%s", old_status);
+    g_free(old_status);
     g_free(after_plain);
     g_free(after_cipher);
     g_free(plain);
@@ -144,10 +147,10 @@ static gboolean tick(gpointer data) {
         g_free(cipher);
         g_free(plain);
         g_assert_true(app.menu_valid);
+        check_oversized_import();
         break;
     }
     case 6:
-        check_oversized_import();
         if (!capture("crib.png"))
             return G_SOURCE_CONTINUE;
         next(6);
@@ -202,6 +205,9 @@ static void activate(GtkApplication *application, gpointer data) {
     g_assert_cmpstr(initial_plain, ==, "WETTERBERICHT");
     g_assert_false(app.challenge.present);
     g_free(initial_plain);
+    /* Return to the normal lesson after verifying the deliberately invalid startup file. */
+    gtk_editable_set_text(GTK_EDITABLE(app.scenario_path), "scenario.ini");
+    app_status(&app, "Ready to play. Start the tutorial for a guided first run.");
     gtk_stack_set_transition_type(GTK_STACK(app.stack), GTK_STACK_TRANSITION_TYPE_NONE);
     const char *size = g_getenv("LAB_TEST_SMALL_WINDOW");
     if (size)
