@@ -122,7 +122,27 @@ For each rotor state the engine:
 6. Records surviving deductions. Letters never constrained by the menu remain explicitly unresolved.
 7. Uses identity for those unresolved letters, resets the candidate Enigma, decrypts the ciphertext, and checks the entire crib again before publishing the stop.
 
-There is no enumeration of all complete plugboards. The recursion assigns only letters needed by menu constraints and their involution partners. No allocation or string search occurs in the cipher loop. Candidate scoring runs only after a stop, using a modest English letter-frequency score and several English/German sequences. Rows sort by this score. It is a ranking aid, not proof of a solution.
+There is no enumeration of all complete plugboards. The recursion assigns only letters needed by menu constraints and their involution partners. No allocation or string search occurs in the cipher loop. Candidate scoring runs only after a stop, using a modest English letter-frequency score and several English/German sequences. This legacy kernel score is a ranking aid, not proof of a solution.
+
+The GUI ranks received candidates on the English trigram scale in every mode.
+Its Stop confidence control defaults to 80, with 0 disabling automatic stopping.
+`SearchSpec.stop_confidence` captures the target for each run. The worker callback
+rates a candidate on that same scale, retains it even if the output queue is full,
+then cancels the pool when the target is reached. `SearchSnapshot.reached_confidence`
+distinguishes this from manual cancellation or exhaustion. The GUI drains the remaining
+queue, selects the highest-scoring received answer and copies its text to Candidate
+decryption. No hidden challenge data is used. Core callers retain the previous behavior
+unless they set a target. Scenario files store the target as `Message.stop_confidence`;
+older files use 80.
+
+All six pages use compact controls. Toolbars pack controls at their natural widths
+and wrap when needed, rather than reserving empty grid columns. Diagrams use the
+remaining height while preserving their aspect ratio. The message editors share a row, and the Bombe
+uses a resizable split between worker animations and candidates. Those panes scroll
+independently when their contents exceed the available space. Page scrolling remains
+available for small windows and expanded help. The layout test checks that all six
+pages fit at 1366 by 768 and 1900 by 1000 with help collapsed and the tutorial
+closed. It also checks keyboard traversal and scaled plugboard hit testing.
 
 The `SearchSpec` interface contains ciphertext, crib/menu, public rings/reflector and search controls. It has no hidden plaintext or secret-key field. The GUI never compares candidates with the hidden plaintext or generator key. All candidate ranking uses decrypted-text statistics alone. An equivalent recovered key may produce the same plaintext.
 

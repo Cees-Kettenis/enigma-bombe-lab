@@ -79,6 +79,41 @@ int main(void) {
     assert(received && !strcmp(best.plaintext, plain));
     printf("Parallel 24-state search recovered %zu letters and the key.\n", strlen(plain));
     assert(!memcmp(&best.key, &key, sizeof key));
+    /* The worker pool must stop without waiting for the GUI, and retain its answer. */
+    s.stop_confidence = 80;
+    received = 0;
+    assert(search_pool_start(pool, &s));
+    search_pool_wait(pool, NULL);
+    search_pool_snapshot(pool, &snapshot, NULL);
+    assert(!snapshot.running && snapshot.tested < s.limit);
+    assert(snapshot.reached_confidence >= 80);
+    while (search_pool_pop(pool, &candidate))
+        collect(&candidate, NULL);
+    assert(received && blind_confidence_percent(best.score) >= 80);
+
+    /* Disabling the threshold on the same pool restores exhaustive scanning. */
+    s.stop_confidence = 0;
+    assert(search_pool_start(pool, &s));
+    search_pool_wait(pool, NULL);
+    search_pool_snapshot(pool, &snapshot, NULL);
+    assert(snapshot.tested == s.limit && snapshot.reached_confidence == 0);
+
+    /* Clue mode uses the same English scale, rather than its legacy ranking score. */
+    SearchSpec clue;
+    assert(search_spec_init(&clue, cipher, "THEMORNINGTRAINHADALREADYLEFTTHESTATION", 0,
+                            key.ring, key.reflector));
+    clue.stop_confidence = 80;
+    clue.limit = 24;
+    assert(search_pool_start(pool, &clue));
+    search_pool_wait(pool, NULL);
+    search_pool_snapshot(pool, &snapshot, NULL);
+    assert(!snapshot.running && snapshot.reached_confidence >= 80);
+    bool retained = false;
+    while (search_pool_pop(pool, &candidate))
+        retained |= blind_confidence_percent(blind_english_score(candidate.plaintext)) >= 80;
+    assert(retained);
+    clue.stop_confidence = 101;
+    assert(!search_pool_start(pool, &clue));
     s.limit = 0;
     assert(search_pool_start(pool, &s));
     search_pool_pause(pool, true);

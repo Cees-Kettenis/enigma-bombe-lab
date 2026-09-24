@@ -13,6 +13,7 @@ typedef struct {
     double elapsed;
     unsigned threads, orders_completed;
     bool running, paused;
+    double reached_confidence; /* Zero unless a candidate met the requested threshold. */
 } SearchSnapshot;
 typedef struct SearchPool SearchPool;
 SearchPool *search_pool_new(unsigned count);

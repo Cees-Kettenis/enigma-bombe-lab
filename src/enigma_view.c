@@ -17,9 +17,10 @@ static double progress(const App *a) {
 void enigma_view_draw(GtkDrawingArea *area, cairo_t *cr, int width, int height, gpointer data) {
     (void)area;
     App *a = data;
-    double sx = (double)width / 1100, sy = (double)height / 485;
-    cairo_scale(cr, sx, sy);
-    gui_panel(cr, 0, 0, 1100, 485);
+    gui_panel(cr, 0, 0, width, height);
+    double scale = fmin((double)width / 1100, (double)height / 485);
+    cairo_translate(cr, (width - 1100 * scale) / 2, (height - 485 * scale) / 2);
+    cairo_scale(cr, scale, scale);
     const EnigmaTrace *trace = a->trace_count ? &a->traces[a->trace_index] : NULL;
     double phase = progress(a);
     gui_color(cr, .73, .66, .48);
@@ -101,7 +102,7 @@ void enigma_view_draw(GtkDrawingArea *area, cairo_t *cr, int width, int height, 
         gui_draw_text(cr, 170, 335, 13, desc);
     } else {
         gui_color(cr, .65, .70, .66);
-        gui_draw_text(cr, 230, 334, 13, "Type on the message desk, or enter letters below.");
+        gui_draw_text(cr, 230, 334, 13, "Type on the message desk, or use the keyboard above.");
     }
     const char *letters = "QWERTZUIOASDFGHJKPYXCVBNML";
     for (int i = 0; i < 26; i++) {
@@ -146,8 +147,10 @@ static void socket_xy(int i, double *x, double *y) {
 void plugboard_view_draw(GtkDrawingArea *area, cairo_t *cr, int width, int height, gpointer data) {
     (void)area;
     App *a = data;
-    cairo_scale(cr, (double)width / 1100, (double)height / 420);
-    gui_panel(cr, 0, 0, 1100, 420);
+    gui_panel(cr, 0, 0, width, height);
+    double scale = fmin((double)width / 1100, (double)height / 420);
+    cairo_translate(cr, (width - 1100 * scale) / 2, (height - 420 * scale) / 2);
+    cairo_scale(cr, scale, scale);
     gui_color(cr, .72, .65, .48);
     gui_draw_text(cr, 25, 32, 13, "PATCH PANEL  /  26 CONTACTS  /  MAXIMUM 10 CABLES");
     for (int i = 0; i < 26; i++)
@@ -199,8 +202,13 @@ void plugboard_pressed(GtkGestureClick *gesture, int presses, double x, double y
     (void)gesture;
     (void)presses;
     App *a = data;
-    x *= 1100.0 / gtk_widget_get_width(a->plug_canvas);
-    y *= 420.0 / gtk_widget_get_height(a->plug_canvas);
+    double width = gtk_widget_get_width(a->plug_canvas);
+    double height = gtk_widget_get_height(a->plug_canvas);
+    double scale = fmin(width / 1100, height / 420);
+    if (scale <= 0)
+        return;
+    x = (x - (width - 1100 * scale) / 2) / scale;
+    y = (y - (height - 420 * scale) / 2) / scale;
     for (int i = 0; i < 26; i++) {
         double xx, yy;
         socket_xy(i, &xx, &yy);

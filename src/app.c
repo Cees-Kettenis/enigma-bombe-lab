@@ -202,7 +202,8 @@ void app_reset(GtkButton *button, gpointer data) {
     a->trace_count = 0;
     a->animating = false;
     app_sync_key(a);
-    app_status(a, "Machine reset to starting windows. Encrypt always starts from this setting.");
+    app_status(a, "Machine reset to starting windows. To run a new search, open BOMBE and press "
+                  "START BOMBE. Reset does not restart a search.");
 }
 void app_random_key(GtkButton *button, gpointer data) {
     (void)button;
@@ -440,6 +441,36 @@ void app_start(GtkButton *button, gpointer data) {
         return;
     }
     bool blind = gtk_drop_down_get_selected(GTK_DROP_DOWN(a->mode)) == 3;
+    char *raw = app_text(a->cipher);
+    size_t input_bytes = strlen(raw);
+    char normalized[LAB_TEXT_MAX];
+    size_t letters = enigma_normalize(raw, normalized, sizeof normalized);
+    g_free(raw);
+    if (input_bytes >= LAB_TEXT_MAX) {
+        app_status(a, "Ciphertext is too long. Use fewer than %d input bytes.", LAB_TEXT_MAX);
+        return;
+    }
+    if (!letters) {
+        app_status(a, "Paste ciphertext in MESSAGE / INTERCEPT before starting the Bombe.");
+        return;
+    }
+    if (blind && letters < 50) {
+        app_status(a, "Search not started. Your ciphertext has %zu A-Z letters; English detective "
+                      "needs at least 50. For this short message, enter a guessed phrase of at "
+                      "least eight letters in CRIB / MENU and choose Training / with a clue.",
+                   letters);
+        return;
+    }
+    if (!blind) {
+        char clue[LAB_CRIB_MAX + 1];
+        enigma_normalize(gtk_editable_get_text(GTK_EDITABLE(a->crib)), clue, sizeof clue);
+        if (strlen(clue) < 8) {
+            app_status(a, "Search not started. Training and Advanced need a guessed phrase of at "
+                          "least eight letters in CRIB / MENU. No crib / English detective needs "
+                          "at least 50 ciphertext letters; your message has %zu.", letters);
+            return;
+        }
+    }
     uint8_t rings[3], reflector;
     if (blind) {
         unsigned selected = gtk_drop_down_get_selected(GTK_DROP_DOWN(a->reflector));
@@ -476,10 +507,13 @@ void app_start(GtkButton *button, gpointer data) {
         app_status(
             a, blind
                    ? "No-crib search needs at least 50 A-Z letters and fewer than 2048 input bytes."
-                   : "Use a valid crib alignment with at least eight letters. More cycles reduce "
-                     "ambiguity.");
+                   : "Search not started. Check the clue and offset in CRIB / MENU. The clue "
+                     "must fit within the ciphertext and cannot match a ciphertext letter at "
+                     "the same position.");
         return;
     }
+    spec.stop_confidence =
+        (unsigned)gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(a->stop_confidence));
     spec.advanced = gtk_drop_down_get_selected(GTK_DROP_DOWN(a->mode)) == 2;
     spec.max_stops_per_state =
         (unsigned)gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(a->stop_limit));
@@ -504,6 +538,7 @@ void app_start(GtkButton *button, gpointer data) {
         a->pool_threads = threads;
     }
     clear_results(a);
+    app_set_text(a->decrypted, "");
     memset(a->workers, 0, sizeof(WorkerSnapshot) * threads);
     memset(a->previous_workers, 0, sizeof(WorkerSnapshot) * threads);
     memset(a->worker_flashes, 0, sizeof(double) * threads);
@@ -647,7 +682,7 @@ static gboolean refresh(gpointer data) {
         search_pool_snapshot(a->pool, &a->snapshot, a->workers);
         Candidate candidate;
         unsigned drained = 0;
-        while (drained++ < 32 && search_pool_pop(a->pool, &candidate))
+        while (drained++ < (a->snapshot.running ? 32u : LAB_QUEUE_SIZE) && search_pool_pop(a->pool, &candidate))
             add_candidate(a, &candidate);
         if (dt >= .20) {
             double rate = dt > 0 ? (double)(a->snapshot.tested - a->last_tested) / dt : 0;
@@ -705,20 +740,33 @@ static gboolean refresh(gpointer data) {
         if (gtk_drawing_area_get_content_height(GTK_DRAWING_AREA(a->bombe_canvas)) != h)
             gtk_drawing_area_set_content_height(GTK_DRAWING_AREA(a->bombe_canvas), h);
         gtk_widget_queue_draw(a->bombe_canvas);
-        if (was_running && !a->snapshot.running && a->active_spec.blind)
+        if (a->started_search && !a->snapshot.running && a->snapshot.reached_confidence > 0) {
+            GtkListBoxRow *best = gtk_list_box_get_row_at_index(GTK_LIST_BOX(a->results), 0);
+            if (best) {
+                Candidate *answer = g_object_get_data(G_OBJECT(best), "candidate");
+                gtk_list_box_select_row(GTK_LIST_BOX(a->results), best);
+                app_set_text(a->decrypted, answer->plaintext);
+            }
+            app_status(a, "Stopped at %.1f%% English confidence, reaching your %u%% target. "
+                          "The best candidate is selected and copied to Candidate decryption. "
+                          "Read it to check the answer.",
+                       a->snapshot.reached_confidence, a->active_spec.stop_confidence);
+        } else if (a->started_search && !a->snapshot.running && a->active_spec.blind)
             app_status(
                 a,
                 "No-crib search ended after %" G_GUINT64_FORMAT
                 " rotor states. Inspect the highest English confidence. A guess is not proof of "
                 "the key.",
                 a->snapshot.tested);
-        else if (was_running && !a->snapshot.running)
+        else if (a->started_search && !a->snapshot.running)
             app_status(a,
                        "Search %s. %" G_GUINT64_FORMAT " states, %" G_GUINT64_FORMAT
                        " crib-consistent stops.",
                        a->snapshot.tested == a->snapshot.total ? "completed" : "stopped",
                        a->snapshot.tested, a->snapshot.stops);
     }
+    if (a->started_search && !a->snapshot.running)
+        a->started_search = false;
     benchmark_snapshot(&a->benchmark, a->benchmark_rows, &a->benchmark_count,
                        &a->benchmark_running);
     if (a->benchmark_count || a->benchmark_running) {
@@ -743,6 +791,7 @@ static gboolean refresh(gpointer data) {
     gtk_widget_set_sensitive(a->mode, !a->snapshot.running);
     gtk_widget_set_sensitive(a->stop_limit, !a->snapshot.running);
     gtk_widget_set_sensitive(a->blind_restarts, !a->snapshot.running);
+    gtk_widget_set_sensitive(a->stop_confidence, !a->snapshot.running);
     gtk_widget_set_sensitive(a->benchmark_button, !a->snapshot.running && !a->benchmark_running);
     tutorial_refresh(a);
     return G_SOURCE_CONTINUE;
@@ -813,6 +862,8 @@ void app_save(GtkButton *button, gpointer data) {
                            (int)gtk_drop_down_get_selected(GTK_DROP_DOWN(a->mode)));
     g_key_file_set_integer(file, "Message", "blind_restarts",
                            gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(a->blind_restarts)));
+    g_key_file_set_integer(file, "Message", "stop_confidence",
+                           gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(a->stop_confidence)));
     g_key_file_set_integer(file, "Message", "stop_limit",
                            gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(a->stop_limit)));
     g_key_file_set_boolean(file, "Message", "random_rings",
@@ -852,6 +903,13 @@ static bool load_path(App *a, const char *path) {
     int stop_limit = g_key_file_has_key(file, "Message", "stop_limit", NULL)
                          ? g_key_file_get_integer(file, "Message", "stop_limit", NULL)
                          : 64;
+    int stop_confidence = 80;
+    if (g_key_file_has_key(file, "Message", "stop_confidence", NULL)) {
+        GError *setting_error = NULL;
+        stop_confidence = g_key_file_get_integer(file, "Message", "stop_confidence", &setting_error);
+        ok = ok && !setting_error && stop_confidence >= 0 && stop_confidence <= 100;
+        g_clear_error(&setting_error);
+    }
     int blind_restarts = g_key_file_has_key(file, "Message", "blind_restarts", NULL)
                              ? g_key_file_get_integer(file, "Message", "blind_restarts", NULL)
                              : 2;
@@ -894,6 +952,7 @@ static bool load_path(App *a, const char *path) {
         gtk_drop_down_set_selected(GTK_DROP_DOWN(a->mode), (guint)mode);
         gtk_spin_button_set_value(GTK_SPIN_BUTTON(a->stop_limit), stop_limit);
         gtk_spin_button_set_value(GTK_SPIN_BUTTON(a->blind_restarts), blind_restarts);
+        gtk_spin_button_set_value(GTK_SPIN_BUTTON(a->stop_confidence), stop_confidence);
         gtk_check_button_set_active(GTK_CHECK_BUTTON(a->random_rings),
                                     g_key_file_get_boolean(file, "Message", "random_rings", NULL));
         a->loading = false;

@@ -13,6 +13,7 @@ typedef struct {
     uint64_t blind_seed;
     uint64_t limit;
     unsigned max_stops_per_state;
+    unsigned stop_confidence; /* English score percentage; zero disables automatic stop. */
 } SearchSpec;
 typedef struct {
     EnigmaKey key;

@@ -1,52 +1,41 @@
 window { background: #11191b; color: #eee8d8; }
-headerbar { background: #1c272a; color: #eee8d8; border-bottom: 1px solid #495350; }
-label { padding-top: 3px; padding-bottom: 3px; }
-label.title { font-size: 28px; font-weight: 800; letter-spacing: 2px; color: #efc77c; }
+headerbar { background: #1c272a; color: #eee8d8; border-bottom: 1px solid #495350; min-height: 34px; }
+label { padding-top: 1px; padding-bottom: 1px; }
+label.title { font-size: 21px; font-weight: 800; color: #efc77c; }
 label.subtitle { color: #aebbb8; font-size: 13px; }
-label.section { color: #e4c58a; font-size: 16px; font-weight: 700; letter-spacing: 1px; }
-label.stats { font-family: monospace; font-size: 16px; color: #efe2bc; }
-label.status { padding: 10px 16px; background: #202d2e; color: #e6cb93; }
-button { background: #2b3c3d; color: #f0eadb; border: 1px solid #506060; border-radius: 6px; padding: 7px 12px; }
+label.section { color: #e4c58a; font-size: 14px; font-weight: 700; }
+label.stats { font-family: monospace; font-size: 12px; color: #efe2bc; }
+label.status { font-size: 12px; padding: 5px 14px; background: #202d2e; color: #e6cb93; border-top: 1px solid #36494a; }
+button { background: #2b3c3d; color: #f0eadb; border: 1px solid #506060; border-radius: 6px; padding: 4px 9px; min-height: 24px; }
 button:hover { background: #3a5050; }
 button.suggested-action { background: #b38b49; color: #101b1e; font-weight: 800; border-color: #d8b46e; }
 button.destructive-action { background: #693e35; }
 button:disabled { opacity: .45; }
-entry, spinbutton, dropdown { background: #172225; color: #f2e8cf; border: 1px solid #4b5c5b; border-radius: 4px; }
-textview, textview text { background: #172225; color: #f1e7d0; font-family: monospace; font-size: 16px; }
-/* TextView's buffer margins provide padding inside its actual text layout. */
-textview { padding: 0; border-radius: 8px; }
-stackswitcher button { padding-left: 8px; padding-right: 8px; }
-notebook, stack { background: transparent; }
-frame { border: 1px solid #3b4d4c; border-radius: 8px; }
-list row { padding: 8px; border-bottom: 1px solid #334543; }
-list row:selected { background: #43534b; }
-list { background: #162123; }
-progressbar trough { background: #263837; min-height: 9px; }
-progressbar progress { background: #dab36d; min-height: 9px; }
-scrolledwindow { border-radius: 8px; }
-separator { background: #3d4f4e; }
-.tutorial { background: #233536; border: 1px solid #b38b49; border-radius: 8px; padding: 10px 14px; }
-
-/* A quiet workbench, with brass accents for the next action. */
-headerbar { min-height: 46px; }
-label.title { font-size: 27px; letter-spacing: .3px; }
-label.section { letter-spacing: .2px; }
-label.subtitle { font-size: 14px; }
-label.stats { font-size: 14px; }
-label.status { font-size: 13px; border-top: 1px solid #36494a; }
-button { border-radius: 9px; padding: 9px 14px; }
 button:focus-visible { outline: 2px solid #efc77c; outline-offset: 2px; }
-entry, spinbutton, dropdown { border-radius: 7px; min-height: 34px; }
+entry, spinbutton, dropdown { background: #172225; color: #f2e8cf; border: 1px solid #4b5c5b; border-radius: 5px; min-height: 28px; }
+entry { min-width: 0; }
+spinbutton entry { min-width: 28px; }
+spinbutton > button { padding: 2px 4px; min-width: 20px; min-height: 22px; }
 entry:focus-within { border-color: #dab36d; }
-stackswitcher { background: #1c292c; border: 1px solid #36494a; border-radius: 12px; padding: 4px; }
-stackswitcher button { border: none; background: transparent; border-radius: 8px; font-size: 12px; padding: 9px 12px; }
+textview, textview text { background: #172225; color: #f1e7d0; font-family: monospace; font-size: 14px; }
+/* Buffer margins keep padding inside the text layout. */
+textview { padding: 0; border-radius: 6px; }
+stackswitcher { background: #1c292c; border: 1px solid #36494a; border-radius: 8px; padding: 2px; }
+stackswitcher button { border: none; background: transparent; border-radius: 6px; font-size: 12px; padding: 4px 10px; }
 stackswitcher button:checked { background: #dfb775; color: #152125; font-weight: 700; }
 stackswitcher button:hover { background: #3a5050; color: #fff1d9; }
-expander.explanation { background: #1a272a; border: 1px solid #344749; border-radius: 9px; padding: 12px 16px; }
-expander.explanation > title { color: #d9c395; font-weight: 600; }
-label.candidate { font-family: monospace; font-size: 14px; color: #eae3cf; }
-list row { padding: 14px 16px; border-bottom: 1px solid #334543; }
+notebook, stack { background: transparent; }
+frame { border: 1px solid #3b4d4c; border-radius: 6px; }
+list { background: #162123; }
+list row { padding: 6px 8px; border-bottom: 1px solid #334543; }
 list row:hover { background: #263b3d; }
 list row:selected { background: #3c514b; border-left: 3px solid #dfb775; }
-progressbar trough, progressbar progress { border-radius: 8px; min-height: 10px; }
-.tutorial { border-radius: 12px; padding: 16px 20px; }
+label.candidate { font-family: monospace; font-size: 12px; color: #eae3cf; }
+progressbar trough { background: #263837; }
+progressbar progress { background: #dab36d; }
+progressbar trough, progressbar progress { border-radius: 6px; min-height: 6px; }
+scrolledwindow { border-radius: 6px; }
+separator { background: #3d4f4e; }
+expander.explanation { background: #1a272a; border: 1px solid #344749; border-radius: 6px; padding: 4px 8px; }
+expander.explanation > title { color: #d9c395; font-weight: 600; }
+.tutorial { background: #233536; border: 1px solid #b38b49; border-radius: 8px; padding: 7px 12px; }

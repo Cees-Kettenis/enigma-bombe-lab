@@ -18,7 +18,7 @@ typedef struct App {
     GtkWidget *enigma_canvas, *plug_canvas, *menu_canvas, *bombe_canvas, *graph_canvas,
         *benchmark_canvas;
     GtkWidget *threads, *speed, *mode, *stop_limit, *auto_encrypt, *random_rings, *progress;
-    GtkWidget *blind_restarts;
+    GtkWidget *blind_restarts, *stop_confidence;
     GtkWidget *stats, *results, *benchmark_text, *scenario_path, *key_entry;
     GtkWidget *start_button, *pause_button, *resume_button, *stop_button, *benchmark_button;
     EnigmaKey key;

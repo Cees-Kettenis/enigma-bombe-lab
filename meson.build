@@ -9,15 +9,18 @@ core = static_library('enigma-core', ['src/rotor.c', 'src/plugboard.c', 'src/eni
 core_dep = declare_dependency(link_with: core, include_directories: inc, dependencies: [threads, math])
 gnome = import('gnome')
 res = gnome.compile_resources('lab-resources', 'resources/lab.gresource.xml', source_dir: 'resources', c_name: 'lab')
-gui_sources = ['src/app.c', 'src/scenario.c', 'src/tutorial.c', 'src/gui.c', 'src/enigma_view.c', 'src/bombe_view.c', 'src/menu_view.c', res]
+gui_sources = ['src/app.c', 'src/scenario.c', 'src/tutorial.c', 'src/gui.c', 'src/wrap_box.c', 'src/enigma_view.c', 'src/bombe_view.c', 'src/menu_view.c', res]
 executable('enigma-bombe-lab', ['src/main.c', gui_sources], dependencies: [core_dep, gtk], install: true)
 tutorial_test = executable('test_tutorial', ['tests/test_tutorial.c', gui_sources], dependencies: [core_dep, gtk])
 test('tutorial', tutorial_test, suite: 'gui', timeout: 120, is_parallel: false)
 blind_gui_test = executable('test_blind_gui', ['tests/test_blind_gui.c', gui_sources], dependencies: [core_dep, gtk])
 test('blind_gui', blind_gui_test, args: [meson.project_source_root() / 'examples/no-crib.ini'], suite: 'gui', timeout: 30, is_parallel: false)
-foreach verification : ['known', 'different']
+foreach verification : ['known', 'different', 'auto']
   test('blind_gui_' + verification, blind_gui_test, args: [meson.project_source_root() / 'examples/no-crib.ini', verification], suite: 'gui', timeout: 30, is_parallel: false)
 endforeach
+layout_test = executable('test_layout', ['tests/test_layout.c', gui_sources], dependencies: [core_dep, gtk])
+test('layout', layout_test, suite: 'gui', timeout: 30, is_parallel: false)
+test('layout_wide', layout_test, args: ['wide'], suite: 'gui', timeout: 30, is_parallel: false)
 scenario_test = executable('test_scenario', ['tests/test_scenario.c', 'src/scenario.c'], include_directories: inc, dependencies: dependency('glib-2.0'))
 test('scenario', scenario_test)
 foreach name : ['enigma', 'menu', 'bombe', 'blind']

@@ -29,6 +29,7 @@ struct SearchPool {
     unsigned head, used;
     uint64_t dropped;
     double best_language_score;
+    double reached_confidence;
     atomic_uint completed_orders[60 * 17576];
 };
 double lab_now(void) {
@@ -43,7 +44,15 @@ unsigned lab_cpu_count(void) {
 static bool found(const Candidate *c, void *data) {
     Worker *w = data;
     SearchPool *p = w->pool;
+    double confidence = p->spec.stop_confidence
+                            ? blind_confidence_percent(blind_english_score(c->plaintext))
+                            : 0;
     pthread_mutex_lock(&p->mutex);
+    if (p->reached_confidence > 0) {
+        pthread_mutex_unlock(&p->mutex);
+        return false;
+    }
+    bool reached = p->spec.stop_confidence && confidence >= p->spec.stop_confidence;
     if (c->heuristic) {
         if (c->score <= p->best_language_score) {
             pthread_mutex_unlock(&p->mutex);
@@ -57,6 +66,12 @@ static bool found(const Candidate *c, void *data) {
             p->dropped++;
         }
     }
+    /* Always retain the candidate that stops the search, even with a full queue. */
+    if (reached && p->used == LAB_QUEUE_SIZE) {
+        p->head = (p->head + 1) % LAB_QUEUE_SIZE;
+        p->used--;
+        p->dropped++;
+    }
     if (p->used < LAB_QUEUE_SIZE) {
         unsigned i = (p->head + p->used) % LAB_QUEUE_SIZE;
         p->queue[i] = *c;
@@ -65,6 +80,11 @@ static bool found(const Candidate *c, void *data) {
         p->used++;
     } else
         p->dropped++;
+    if (reached) {
+        p->reached_confidence = confidence;
+        atomic_store(&p->cancel, true);
+        pthread_cond_broadcast(&p->condition);
+    }
     pthread_mutex_unlock(&p->mutex);
     return !atomic_load(&p->cancel);
 }
@@ -225,6 +245,8 @@ void search_pool_free(SearchPool *p) {
     free(p);
 }
 bool search_pool_start(SearchPool *p, const SearchSpec *s) {
+    if (s->stop_confidence > 100)
+        return false;
     pthread_mutex_lock(&p->mutex);
     if (p->running) {
         pthread_mutex_unlock(&p->mutex);
@@ -234,6 +256,7 @@ bool search_pool_start(SearchPool *p, const SearchSpec *s) {
     p->head = p->used = 0;
     p->dropped = 0;
     p->best_language_score = -DBL_MAX;
+    p->reached_confidence = 0;
     p->started = lab_now();
     p->ended = 0;
     p->pending = p->count;
@@ -273,6 +296,7 @@ void search_pool_snapshot(SearchPool *p, SearchSnapshot *out, WorkerSnapshot *wo
     out->elapsed = p->started ? ((p->running ? lab_now() : p->ended) - p->started) : 0;
     out->threads = p->count;
     out->dropped = p->dropped;
+    out->reached_confidence = p->reached_confidence;
     unsigned orders = p->spec.advanced ? 60 * 17576 : 60;
     for (unsigned i = 0; i < orders; i++)
         out->orders_completed +=
