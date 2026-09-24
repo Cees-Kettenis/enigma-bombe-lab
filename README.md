@@ -43,7 +43,7 @@ Click **Tutorial** in the top-right corner, or launch with `--tutorial`. Follow 
 
 Starting the lesson replaces your current message and settings. Opening the tutorial does not. You can exit at any time and keep working with the current message.
 
-![The built-in tutorial above the Enigma controls](docs/screenshots/tutorial.png)
+![The built-in tutorial above the Enigma controls](docs/screenshots/tutorial-compact.png)
 
 ### 1. Scramble the machine
 

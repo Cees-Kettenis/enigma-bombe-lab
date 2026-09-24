@@ -86,7 +86,7 @@ static gboolean tick(gpointer data) {
     case 0:
         g_assert_true(gtk_widget_get_visible(app.tutorial_panel));
         g_assert_cmpuint(app.tutorial_step, ==, 0);
-        if (!capture("tutorial.png"))
+        if (!capture("tutorial-compact.png"))
             return G_SOURCE_CONTINUE;
         /* Opening the guide does not replace an existing message. */
         app_set_text(app.plain, "KEEP THIS UNTIL I START");
